@@ -39,7 +39,7 @@ class Joint3DDataset(Dataset):
     def __init__(self, dataset_dict={'sr3d': 1, 'scannet': 10},
                  test_dataset='sr3d',
                  split='train', overfit=False,
-                 data_path='./',
+                 data_path='./data/',
                  use_color=False, use_height=False, use_multiview=False,
                  detect_intermediate=False,
                  butd=False, butd_gt=False, butd_cls=False, augment_det=False):
@@ -82,7 +82,7 @@ class Joint3DDataset(Dataset):
             label_to='nyu40class'
         )
         self.multiview_path = os.path.join(
-            f'{self.data_path}/scanrefer_2d_feats',
+            f'{self.data_path}', "scanrefer_2d_feats"
             "enet_feats_maxpool.hdf5"
         )
         self.multiview_data = {}
@@ -93,9 +93,9 @@ class Joint3DDataset(Dataset):
 
         # load
         print('Loading %s files, take a breath!' % split)
-        if not os.path.exists(f'{self.data_path}/{split}_v3scans.pkl'):
-            save_data(f'{data_path}/{split}_v3scans.pkl', split, data_path)
-        self.scans = unpickle_data(f'{self.data_path}/{split}_v3scans.pkl')
+        if not os.path.exists(os.path.join(self.data_path, f"{split}_v3scans.pkl")):
+            save_data(os.path.join(self.data_path, f"{split}_v3scans.pkl"), split, data_path)
+        self.scans = unpickle_data(os.path.join(self.data_path, f"{split}_v3scans.pkl"))
         self.scans = list(self.scans)[0]
         if self.split != 'train':
             self.annos = self.load_annos(test_dataset)
@@ -134,9 +134,9 @@ class Joint3DDataset(Dataset):
             split = 'test'
         with open('data/meta_data/sr3d_%s_scans.txt' % split) as f:
             scan_ids = set(eval(f.read()))
-        with open(self.data_path + 'sr3d_pred_spans.json', 'r') as f:
+        with open(os.path.join(self.data_path, 'sr3d_pred_spans.json'), 'r') as f:
             pred_spans = json.load(f)
-        with open(self.data_path + 'refer_it_3d/%s.csv' % dset) as f:
+        with open(os.path.join(self.data_path + 'refer_it_3d/%s.csv' % dset)) as f:
             csv_reader = csv.reader(f)
             headers = next(csv_reader)
             headers = {header: h for h, header in enumerate(headers)}
@@ -209,7 +209,7 @@ class Joint3DDataset(Dataset):
 
     def load_scanrefer_annos(self):
         """Load annotations of ScanRefer."""
-        _path = self.data_path + 'scanrefer/ScanRefer_filtered'
+        _path = os.path.join(self.data_path, 'scanrefer/ScanRefer_filtered')
         split = self.split
         if split in ('val', 'test'):
             split = 'val'
@@ -217,7 +217,7 @@ class Joint3DDataset(Dataset):
             scan_ids = [line.rstrip().strip('\n') for line in f.readlines()]
         with open(_path + '_%s.json' % split) as f:
             reader = json.load(f)
-        with open(self.data_path + f'scanrefer_pred_spans_{split}.json') as f:
+        with open(os.path.join(self.data_path, f'scanrefer_pred_spans_{split}.json')) as f:
             pred_spans = json.load(f)
 
         annos = [
@@ -569,7 +569,7 @@ class Joint3DDataset(Dataset):
 
         # Load
         detected_dict = np.load(
-            f'{self.data_path}group_free_pred_bboxes_{split}/{scan_id}.npy',
+            os.path.join(self.data_path, f'group_free_pred_bboxes_{split}/{scan_id}.npy'),
             allow_pickle=True
         ).item()
 
@@ -1009,7 +1009,7 @@ def save_data(filename, split, data_path):
 
     # Load data
     n_items = len(scan_ids)
-    n_processes = 4  # min(mp.cpu_count(), n_items)
+    n_processes = 8  # min(mp.cpu_count(), n_items)
     pool = mp.Pool(n_processes)
     chunks = int(n_items / n_processes)
     all_scans = dict()

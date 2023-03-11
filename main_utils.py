@@ -20,9 +20,9 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
-import torch.distributed as dist
-from torch.nn.parallel import DistributedDataParallel
+# from torch.utils.data.distributed import DistributedSampler
+# import torch.distributed as dist
+# from torch.nn.parallel import DistributedDataParallel
 
 from models import HungarianMatcher, SetCriterion, compute_hungarian_loss
 from utils import get_scheduler, setup_logger
@@ -100,8 +100,7 @@ def parse_option():
     parser.add_argument('--val_freq', type=int, default=5)  # epoch-wise
 
     # others
-    parser.add_argument("--local_rank", type=int,
-                        help='local rank for DistributedDataParallel')
+    # parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--ap_iou_thresholds', type=float, default=[0.25, 0.5],
                         nargs='+', help='A list of AP IoU thresholds')
     parser.add_argument("--rng_seed", type=int, default=0, help='manual seed')
@@ -128,7 +127,17 @@ def load_checkpoint(args, model, optimizer, scheduler):
         args.start_epoch = int(checkpoint['epoch']) + 1
     except Exception:
         args.start_epoch = 0
-    model.load_state_dict(checkpoint['model'], strict=True)
+
+    # create new OrderedDict that does not contain `module.`
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in checkpoint['model'].items():
+        name = k[7:]  # remove `module.`
+        new_state_dict[name] = v
+    # load params
+    model.load_state_dict(new_state_dict, strict=True)
+
+    # model.load_state_dict(checkpoint['model'], strict=True)
     if not args.eval and not args.reduce_lr:
         optimizer.load_state_dict(checkpoint['optimizer'])
         scheduler.load_state_dict(checkpoint['scheduler'])
@@ -176,16 +185,16 @@ class BaseTrainTester:
 
         # Create logger
         self.logger = setup_logger(
-            output=args.log_dir, distributed_rank=dist.get_rank(),
+            output=args.log_dir, distributed_rank=0,
             name=name
         )
         # Save config file and initialize tb writer
-        if dist.get_rank() == 0:
-            path = os.path.join(args.log_dir, "config.json")
-            with open(path, 'w') as f:
-                json.dump(vars(args), f, indent=2)
-            self.logger.info("Full config saved to {}".format(path))
-            self.logger.info(str(vars(args)))
+        # if dist.get_rank() == 0:
+        path = os.path.join(args.log_dir, "config.json")
+        with open(path, 'w') as f:
+            json.dump(vars(args), f, indent=2)
+        self.logger.info("Full config saved to {}".format(path))
+        self.logger.info(str(vars(args)))
 
     @staticmethod
     def get_datasets(args):
@@ -206,7 +215,7 @@ class BaseTrainTester:
         # Samplers and loaders
         g = torch.Generator()
         g.manual_seed(0)
-        train_sampler = DistributedSampler(train_dataset)
+        # train_sampler = DistributedSampler(train_dataset)
         train_loader = DataLoader(
             train_dataset,
             batch_size=args.batch_size,
@@ -214,11 +223,11 @@ class BaseTrainTester:
             num_workers=args.num_workers,
             worker_init_fn=seed_worker,
             pin_memory=True,
-            sampler=train_sampler,
+            # sampler=train_sampler,
             drop_last=True,
             generator=g
         )
-        test_sampler = DistributedSampler(test_dataset, shuffle=False)
+        # test_sampler = DistributedSampler(test_dataset, shuffle=False)
         test_loader = DataLoader(
             test_dataset,
             batch_size=args.batch_size,
@@ -226,7 +235,7 @@ class BaseTrainTester:
             num_workers=args.num_workers,
             worker_init_fn=seed_worker,
             pin_memory=True,
-            sampler=test_sampler,
+            # sampler=test_sampler,
             drop_last=False,
             generator=g
         )
@@ -305,12 +314,12 @@ class BaseTrainTester:
         scheduler = get_scheduler(optimizer, len(train_loader), args)
 
         # Move model to devices
-        if torch.cuda.is_available():
-            model = model.cuda()
-        model = DistributedDataParallel(
-            model, device_ids=[args.local_rank],
-            broadcast_buffers=False  # , find_unused_parameters=True
-        )
+
+        model = model.cuda()
+        # model = DistributedDataParallel(
+        #     model, device_ids=[args.local_rank],
+        #     broadcast_buffers=False  # , find_unused_parameters=True
+        # )
 
         # Check for a checkpoint
         if args.checkpoint_path:
@@ -328,7 +337,7 @@ class BaseTrainTester:
 
         # Training loop
         for epoch in range(args.start_epoch, args.max_epoch + 1):
-            train_loader.sampler.set_epoch(epoch)
+            # train_loader.sampler.set_epoch(epoch)
             tic = time.time()
             self.train_one_epoch(
                 epoch, train_loader, model,
@@ -344,8 +353,8 @@ class BaseTrainTester:
                 )
             )
             if epoch % args.val_freq == 0:
-                if dist.get_rank() == 0:  # save model
-                    save_checkpoint(args, epoch, model, optimizer, scheduler)
+                # if dist.get_rank() == 0:  # save model
+                save_checkpoint(args, epoch, model, optimizer, scheduler)
                 print("Test evaluation.......")
                 self.evaluate_one_epoch(
                     epoch, test_loader,

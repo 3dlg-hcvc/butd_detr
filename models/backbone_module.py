@@ -19,7 +19,6 @@ sys.path.append(ROOT_DIR)
 sys.path.append(os.path.join(ROOT_DIR, 'utils'))
 sys.path.append(os.path.join(ROOT_DIR, 'pointnet2'))
 sys.path.append(os.path.join(ROOT_DIR, 'ops', 'pt_custom_ops'))
-
 from pointnet2_modules import PointnetSAModuleVotes, PointnetFPModule
 
 

@@ -2,8 +2,8 @@ from transformers import RobertaModel, RobertaTokenizerFast
 import numpy as np
 
 from data.model_util_scannet import ScannetDatasetConfig
-import ipdb
-st = ipdb.set_trace
+# import ipdb
+# st = ipdb.set_trace
 
 config = ScannetDatasetConfig()
 output_path = 'data/class_embeddings3d.npy'

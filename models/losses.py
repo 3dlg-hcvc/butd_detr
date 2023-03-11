@@ -13,15 +13,15 @@ from scipy.optimize import linear_sum_assignment
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.distributed as dist
+# import torch.distributed as dist
 
 
-def is_dist_avail_and_initialized():
-    if not dist.is_available():
-        return False
-    if not dist.is_initialized():
-        return False
-    return True
+# def is_dist_avail_and_initialized():
+#     if not dist.is_available():
+#         return False
+#     if not dist.is_initialized():
+#         return False
+#     return True
 
 
 def box_cxcyczwhd_to_xyzxyz(x):
@@ -529,9 +529,9 @@ class SetCriterion(nn.Module):
             [num_boxes], dtype=torch.float,
             device=next(iter(outputs.values())).device
         )
-        if is_dist_avail_and_initialized():
-            torch.distributed.all_reduce(num_boxes)
-        num_boxes = torch.clamp(num_boxes / dist.get_world_size(), min=1).item()
+        # if is_dist_avail_and_initialized():
+        #     torch.distributed.all_reduce(num_boxes)
+        # num_boxes = torch.clamp(num_boxes / dist.get_world_size(), min=1).item()
 
         # Compute all the requested losses
         losses = {}

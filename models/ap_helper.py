@@ -17,8 +17,8 @@ from utils.eval_det import eval_det_multiprocessing, eval_grounding, get_iou_obb
 from utils.nms import nms_2d_faster, nms_3d_faster, nms_3d_faster_samecls
 from utils.box_util import get_3d_box
 
-import ipdb
-st = ipdb.set_trace
+# import ipdb
+# st = ipdb.set_trace
 
 
 def in_hull(p, hull):

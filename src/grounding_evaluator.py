@@ -9,10 +9,8 @@
 import torch
 
 from models.losses import _iou3d_par, box_cxcyczwhd_to_xyzxyz
-import utils.misc as misc
+# import utils.misc as misc
 
-import ipdb
-st = ipdb.set_trace
 
 class GroundingEvaluator:
     """
@@ -77,24 +75,24 @@ class GroundingEvaluator:
         for field in ['easy', 'hard', 'vd', 'vid', 'unique', 'multi']:
             print(field, self.dets[field] / self.gts[field])
 
-    def synchronize_between_processes(self):
-        all_dets = misc.all_gather(self.dets)
-        all_gts = misc.all_gather(self.gts)
-
-        if misc.is_main_process():
-            merged_predictions = {}
-            for key in all_dets[0].keys():
-                merged_predictions[key] = 0
-                for p in all_dets:
-                    merged_predictions[key] += p[key]
-            self.dets = merged_predictions
-
-            merged_predictions = {}
-            for key in all_gts[0].keys():
-                merged_predictions[key] = 0
-                for p in all_gts:
-                    merged_predictions[key] += p[key]
-            self.gts = merged_predictions
+    # def synchronize_between_processes(self):
+    #     all_dets = misc.all_gather(self.dets)
+    #     all_gts = misc.all_gather(self.gts)
+    #
+    #     if misc.is_main_process():
+    #         merged_predictions = {}
+    #         for key in all_dets[0].keys():
+    #             merged_predictions[key] = 0
+    #             for p in all_dets:
+    #                 merged_predictions[key] += p[key]
+    #         self.dets = merged_predictions
+    #
+    #         merged_predictions = {}
+    #         for key in all_gts[0].keys():
+    #             merged_predictions[key] = 0
+    #             for p in all_gts:
+    #                 merged_predictions[key] += p[key]
+    #         self.gts = merged_predictions
 
     def evaluate(self, end_points, prefix):
         """
@@ -298,24 +296,24 @@ class GroundingGTEvaluator:
         for field in ['easy', 'hard', 'vd', 'vid', 'unique', 'multi']:
             print(field, self.dets[field] / self.gts[field])
 
-    def synchronize_between_processes(self):
-        all_dets = misc.all_gather(self.dets)
-        all_gts = misc.all_gather(self.gts)
-
-        if misc.is_main_process():
-            merged_predictions = {}
-            for key in all_dets[0].keys():
-                merged_predictions[key] = 0
-                for p in all_dets:
-                    merged_predictions[key] += p[key]
-            self.dets = merged_predictions
-
-            merged_predictions = {}
-            for key in all_gts[0].keys():
-                merged_predictions[key] = 0
-                for p in all_gts:
-                    merged_predictions[key] += p[key]
-            self.gts = merged_predictions
+    # def synchronize_between_processes(self):
+    #     all_dets = misc.all_gather(self.dets)
+    #     all_gts = misc.all_gather(self.gts)
+    #
+    #     if misc.is_main_process():
+    #         merged_predictions = {}
+    #         for key in all_dets[0].keys():
+    #             merged_predictions[key] = 0
+    #             for p in all_dets:
+    #                 merged_predictions[key] += p[key]
+    #         self.dets = merged_predictions
+    #
+    #         merged_predictions = {}
+    #         for key in all_gts[0].keys():
+    #             merged_predictions[key] = 0
+    #             for p in all_gts:
+    #                 merged_predictions[key] += p[key]
+    #         self.gts = merged_predictions
 
     def evaluate(self, end_points, prefix):
         """

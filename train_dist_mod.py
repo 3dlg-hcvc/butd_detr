@@ -14,8 +14,8 @@ import os
 
 import numpy as np
 import torch
-import torch.distributed as dist
-
+# import torch.distributed as dist
+from tqdm import tqdm
 from main_utils import parse_option, BaseTrainTester
 from data.model_util_scannet import ScannetDatasetConfig
 from src.joint_det_dataset import Joint3DDataset
@@ -24,8 +24,8 @@ from models import BeaUTyDETR
 from models import APCalculator, parse_predictions, parse_groundtruths
 
 
-import ipdb
-st = ipdb.set_trace
+# import ipdb
+# st = ipdb.set_trace
 
 
 class TrainTester(BaseTrainTester):
@@ -152,10 +152,10 @@ class TrainTester(BaseTrainTester):
             if evaluator is not None:
                 for prefix in prefixes:
                     evaluator.evaluate(end_points, prefix)
-        evaluator.synchronize_between_processes()
-        if dist.get_rank() == 0:
-            if evaluator is not None:
-                evaluator.print_stats()
+        # evaluator.synchronize_between_processes()
+        # if dist.get_rank() == 0:
+        if evaluator is not None:
+            evaluator.print_stats()
         return None
 
     @torch.no_grad()
@@ -211,7 +211,7 @@ class TrainTester(BaseTrainTester):
             1, 2, 3, 5, 7, 9, 11, 13, 15, 17, 18, 19, 21, 23,
             25, 27, 29, 31, 32, 34, 36, 38, 39, 41, 42, 44, 45
         ])
-        for batch_idx, batch_data in enumerate(test_loader):
+        for batch_idx, batch_data in enumerate(tqdm(test_loader)):
             stat_dict, end_points = self._main_eval_branch(
                 batch_idx, batch_data, test_loader, model, stat_dict,
                 criterion, set_criterion, args
@@ -281,11 +281,11 @@ class TrainTester(BaseTrainTester):
 if __name__ == '__main__':
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
     opt = parse_option()
-    torch.cuda.set_device(opt.local_rank)
-    torch.distributed.init_process_group(backend='nccl', init_method='env://')
-    torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = True
-    torch.backends.cudnn.deterministic = True
+    # torch.cuda.set_device(opt.local_rank)
+    # torch.distributed.init_process_group(backend='nccl', init_method='env://')
+    # torch.backends.cudnn.enabled = True
+    # torch.backends.cudnn.benchmark = True
+    # torch.backends.cudnn.deterministic = True
 
     train_tester = TrainTester(opt)
     ckpt_path = train_tester.main(opt)
