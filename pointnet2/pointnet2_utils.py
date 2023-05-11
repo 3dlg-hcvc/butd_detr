@@ -16,25 +16,9 @@ from torch.autograd import Function
 import torch.nn as nn
 import pytorch_utils as pt_utils
 import sys
+import builtins
 
-try:
-    import builtins
-except:
-    import __builtin__ as builtins
-
-try:
-    import pointnet2._ext as _ext
-except ImportError:
-    if not getattr(builtins, "__POINTNET2_SETUP__", False):
-        raise ImportError(
-            "Could not import _ext module.\n"
-            "Please see the setup instructions in the README: "
-            "https://github.com/erikwijmans/Pointnet2_PyTorch/blob/master/README.rst"
-        )
-
-if False:
-    # Workaround for type hints without depending on the `typing` module
-    from typing import *
+import pointnet2._ext as _ext
 
 
 class RandomDropout(nn.Module):

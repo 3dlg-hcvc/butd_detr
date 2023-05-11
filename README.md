@@ -14,14 +14,13 @@ This is the code for the 3D BUTD-DETR. For the 2D version check the branch `bdet
 ## Install
 
 ### Requirements
-We showcase the installation for CUDA 11.1 and torch==1.10.2, which is what we used for our experiments.
-If you need to use a different version, you can try to modify `environment.yml` accordingly.
 
-- Install environment: `conda env create -f environment.yml --name bdetr3d`
+- Install environment: `conda create -n bdetr3d python=3.8`
 - Activate environment: `conda activate bdetr3d`
-- Install torch: `pip install -U torch==1.10.2 torchvision==0.11.3 --extra-index-url https://download.pytorch.org/whl/cu111`
+- Install torch 1.8.1: `conda install pytorch torchvision cudatoolkit=11.1 -c pytorch-lts -c nvidia`
+- Install packages: `pip install -r requirements.txt`
 - Compile the CUDA layers for [PointNet++](http://arxiv.org/abs/1706.02413), which we used in the backbone
-  network: `sh init.sh`
+  network: `cd pointnet2; python setup.py install`
 
 ### Data preparation
 

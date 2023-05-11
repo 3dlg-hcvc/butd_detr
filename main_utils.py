@@ -15,7 +15,7 @@ import json
 import os
 import random
 import time
-
+from tqdm import tqdm
 import numpy as np
 import torch
 import torch.optim as optim
@@ -302,9 +302,11 @@ class BaseTrainTester:
         self.logger.info(f"length of testing dataset: {n_data}")
 
         # Get model
+        self.logger.info("Loading models ...")
         model = self.get_model(args)
 
         # Get criterion
+        self.logger.info("Loading criterions ...")
         criterion, set_criterion = self.get_criterion(args)
 
         # Get optimizer
@@ -323,6 +325,7 @@ class BaseTrainTester:
 
         # Check for a checkpoint
         if args.checkpoint_path:
+            self.logger.info("Loading checkpoints ...")
             assert os.path.isfile(args.checkpoint_path)
             load_checkpoint(args, model, optimizer, scheduler)
 
@@ -336,8 +339,10 @@ class BaseTrainTester:
             return
 
         # Training loop
+        self.logger.info("Start training ...")
         for epoch in range(args.start_epoch, args.max_epoch + 1):
             # train_loader.sampler.set_epoch(epoch)
+            self.logger.info(f"==> Epoch {epoch}")
             tic = time.time()
             self.train_one_epoch(
                 epoch, train_loader, model,
@@ -421,7 +426,7 @@ class BaseTrainTester:
         model.train()  # set model to training mode
 
         # Loop over batches
-        for batch_idx, batch_data in enumerate(train_loader):
+        for batch_idx, batch_data in enumerate(tqdm(train_loader)):
             # Move to GPU
             batch_data = self._to_gpu(batch_data)
             inputs = self._get_inputs(batch_data)

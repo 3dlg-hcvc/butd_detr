@@ -154,3 +154,9 @@ sr3d_in_srf_format_*.json
 glove.p
 scanrefer_pred.json
 pred.json
+
+.idea
+data/group_free_pred_bboxes_*/
+data/refer_it_3d/
+data/scanrefer/
+data/scans
