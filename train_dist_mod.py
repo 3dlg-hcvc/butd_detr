@@ -144,7 +144,7 @@ class TrainTester(BaseTrainTester):
             )
 
         # Main eval branch
-        for batch_idx, batch_data in enumerate(test_loader):
+        for batch_idx, batch_data in enumerate(tqdm(test_loader)):
             stat_dict, end_points = self._main_eval_branch(
                 batch_idx, batch_data, test_loader, model, stat_dict,
                 criterion, set_criterion, args
