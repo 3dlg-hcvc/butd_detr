@@ -367,6 +367,7 @@ class SetCriterion(nn.Module):
         tgt_idx = torch.cat(tgt_idx)
 
         # Labels, by default lines map to the last element, no_object
+        #import pdb; pdb.set_trace()
         tgt_pos = positive_map[tgt_idx]
         target_sim = torch.zeros_like(logits)
         target_sim[:, :, -1] = 1

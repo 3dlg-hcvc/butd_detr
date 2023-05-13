@@ -224,6 +224,7 @@ class BeaUTyDETR(nn.Module):
                 )).transpose(1, 2)  # 92.5, 84.9
             ], 1).transpose(1, 2).contiguous()
         else:
+            # NOT HERE
             detected_mask = None
             detected_feats = None
 
