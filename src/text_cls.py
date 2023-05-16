@@ -486,7 +486,7 @@ def main():
             batch_size=args.batch_size,
             shuffle=mode == 'train',
             drop_last=mode == 'train',
-            num_workers=0
+            num_workers=4
         )
         for mode in ('train', 'val')
     }
