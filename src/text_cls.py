@@ -139,8 +139,8 @@ class Trainer:
 class Joint3DDataset(Dataset):
     """Dataset utilities for ReferIt3D."""
 
-    def __init__(self, dataset='scanrefer',
-                 split='train',
+    def __init__(self, dataset,
+                 split,
                  data_path='./', store=False):
         """Initialize dataset (here for ReferIt3D utterances)."""
         self.split = split
@@ -313,7 +313,7 @@ class Joint3DDataset(Dataset):
                 'target': ' '.join(str(anno['object_name']).split('_')),
                 'anchors': [],
                 'anchor_ids': [],
-                'dataset': 'scanrefer'
+                'dataset': 'multi3drefer'
             }
             for anno in reader
             if anno['scene_id'] in scan_ids
@@ -459,7 +459,7 @@ def main():
     # Parse arguments
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--checkpoint_path", default="checkpoints/")
-    argparser.add_argument("--checkpoint", default="sr3d.pt")
+    argparser.add_argument("--checkpoint", required=True)
     argparser.add_argument("--dataset", required=True)
     argparser.add_argument("--epochs", default=20, type=int)
     argparser.add_argument("--batch_size", default=128, type=int)
