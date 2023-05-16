@@ -85,7 +85,7 @@ class Trainer:
         n_correct, n_samples = 0, 0
         total_scores = []
         all_utterances = []
-        for step, ex in tqdm(enumerate(self.data_loaders[mode])):
+        for step, ex in enumerate(tqdm(self.data_loaders[mode])):
 
             # Forward pass
             scores = self.model(ex['utterance'])
@@ -120,6 +120,7 @@ class Trainer:
                 pad_scores[is_zero] = argmaxes[is_zero]
                 total_scores.append(pad_scores / pad_scores.sum(1)[:, None])
                 all_utterances.extend(ex['orig_utterance'])
+            torch.cuda.empty_cache()
         if not self.args.store:
             acc = n_correct / n_samples
             print(acc)
@@ -138,7 +139,7 @@ class Trainer:
 class Joint3DDataset(Dataset):
     """Dataset utilities for ReferIt3D."""
 
-    def __init__(self, dataset='sr3d',
+    def __init__(self, dataset='scanrefer',
                  split='train',
                  data_path='./', store=False):
         """Initialize dataset (here for ReferIt3D utterances)."""
@@ -154,7 +155,8 @@ class Joint3DDataset(Dataset):
             'nr3d': self.load_nr3d_annos,
             'sr3d': self.load_sr3d_annos,
             'sr3d+': self.load_sr3dplus_annos,
-            'scanrefer': self.load_scanrefer_annos
+            'scanrefer': self.load_scanrefer_annos,
+            'multi3drefer': self.load_multi3drefer_annos
         }
         annos = loaders[dset]()
         return annos
@@ -279,7 +281,7 @@ class Joint3DDataset(Dataset):
             if anno['target'] not in anno['utterance']:
                 if anno['target'].split()[-1] in anno['utterance']:
                     anno['target'] = anno['target'].split()[-1]
-        print(len(annos))
+        #print(len(annos))
         if not self.store:  # train only on sentences that contain the target
             annos = [
                 anno for anno in annos if anno['target'] in anno['utterance']
@@ -288,7 +290,49 @@ class Joint3DDataset(Dataset):
             for anno in annos:
                 if anno['target'] not in anno['utterance']:
                     anno['target'] = anno['utterance'].split()[0].strip(',')
-        print(len(annos))
+        #print(len(annos))
+        return annos
+
+
+    def load_multi3drefer_annos(self):
+        """Load annotations of ScanRefer."""
+        _path = self.data_path + 'multi3drefer/multi3drefer_filtered'
+        split = self.split
+        if split in ('val', 'test'):
+            split = 'val'
+        with open(_path + '_%s.txt' % split) as f:
+            scan_ids = [line.rstrip().strip('\n') for line in f.readlines()]
+        with open(_path + '_%s.json' % split) as f:
+            reader = json.load(f)
+        annos = [
+            {
+                'scan_id': anno['scene_id'],
+                'target_id': anno['object_ids'],
+                'distractor_ids': [],
+                'utterance': ' '.join(anno['token']),
+                'target': ' '.join(str(anno['object_name']).split('_')),
+                'anchors': [],
+                'anchor_ids': [],
+                'dataset': 'scanrefer'
+            }
+            for anno in reader
+            if anno['scene_id'] in scan_ids
+        ]
+        # Fix missing target reference
+        for anno in annos:
+            if anno['target'] not in anno['utterance']:
+                if anno['target'].split()[-1] in anno['utterance']:
+                    anno['target'] = anno['target'].split()[-1]
+        #print(len(annos))
+        if not self.store:  # train only on sentences that contain the target
+            annos = [
+                anno for anno in annos if anno['target'] in anno['utterance']
+            ]
+        else:  # assign fake target for batching
+            for anno in annos:
+                if anno['target'] not in anno['utterance']:
+                    anno['target'] = anno['utterance'].split()[0].strip(',')
+        #print(len(annos))
         return annos
 
     def _get_token_positive_map(self, anno):
@@ -327,8 +371,10 @@ class Joint3DDataset(Dataset):
             padding="longest", return_tensors="pt"
         )
         # positive_map = torch.zeros((128, 256))
-        gt_map = get_positive_map(tokenized, tokens_positive[:len(cat_names)])
+        gt_map = get_positive_map(tokenized, tokens_positive[:len(cat_names)], anno['utterance'])
         # positive_map[:len(cat_names)] = gt_map
+
+        assert len(cat_names) == 1  # TODO
         return tokens_positive, gt_map[0]
 
     def __len__(self):
@@ -351,7 +397,7 @@ class Joint3DDataset(Dataset):
         }
 
 
-def get_positive_map(tokenized, tokens_positive):
+def get_positive_map(tokenized, tokens_positive, desc):
     """Construct a map of box-token associations."""
     positive_map = torch.zeros((len(tokens_positive), 256), dtype=torch.float)
     for j, tok_list in enumerate(tokens_positive):
@@ -408,13 +454,13 @@ class TextClassifier(nn.Module):
 
 def main():
     """Run main training/test pipeline."""
-    data_path = '/projects/katefgroup/language_grounding/'
+    data_path = '/localhome/yza440/Research/butd_detr/data/'
 
     # Parse arguments
     argparser = argparse.ArgumentParser()
     argparser.add_argument("--checkpoint_path", default="checkpoints/")
     argparser.add_argument("--checkpoint", default="sr3d.pt")
-    argparser.add_argument("--dataset", default="sr3d")
+    argparser.add_argument("--dataset", required=True)
     argparser.add_argument("--epochs", default=20, type=int)
     argparser.add_argument("--batch_size", default=128, type=int)
     argparser.add_argument("--lr", default=1e-4, type=float)
@@ -440,7 +486,7 @@ def main():
             batch_size=args.batch_size,
             shuffle=mode == 'train',
             drop_last=mode == 'train',
-            num_workers=4
+            num_workers=0
         )
         for mode in ('train', 'val')
     }
