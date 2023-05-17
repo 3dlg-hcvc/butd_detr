@@ -876,7 +876,7 @@ class Joint3DDataset(Dataset):
             "is_view_dep": self._is_view_dep(anno['utterance']),
             "is_hard": len(anno['distractor_ids']) > 1,
             "is_unique": len(anno['distractor_ids']) == 0,
-            "num_targets": anno["num_targets"],
+            "num_targets": np.count_nonzero(all_bbox_label_mask),
             "target_cid": target_cid
         })
         return ret_dict
