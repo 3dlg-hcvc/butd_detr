@@ -28,6 +28,7 @@ from utils import get_scheduler, setup_logger
 from models import HungarianMatcher, SetCriterion, compute_hungarian_loss
 import json
 import random
+import wandb
 
 # import ipdb
 # st = ipdb.set_trace
@@ -185,6 +186,8 @@ class TrainTester():
         # Get model
         self.logger.info("Loading models ...")
         model = self.get_model(args)
+
+        wandb.watch(model)
 
         # Get criterion
         self.logger.info("Loading criterions ...")
@@ -349,10 +352,16 @@ class TrainTester():
                 )
                 self.logger.info(''.join([
                     f'{key} {stat_dict[key] / args.print_freq:.4f} \t'
-                    for key in sorted(stat_dict.keys())
-                    if 'loss' in key and 'proposal_' not in key
-                    and 'last_' not in key and 'head_' not in key
+                    for key in sorted(stat_dict.keys()) if 'loss' in key and 'proposal_' not in key and 'last_' not in key and 'head_' not in key
                 ]))
+
+
+                wandb.log({"train/loss_ce": stat_dict["loss_ce"]})
+                wandb.log({"train/loss_bbox": stat_dict["loss_bbox"]})
+                wandb.log({"train/loss_giou": stat_dict["loss_giou"]})
+                wandb.log({"train/loss_constrastive_align": stat_dict["loss_constrastive_align"]})
+                wandb.log({"train/total_loss": stat_dict["loss"]})
+
 
                 for key in sorted(stat_dict.keys()):
                     stat_dict[key] = 0
@@ -730,6 +739,9 @@ if __name__ == '__main__':
     args.eval = args.eval or args.eval_train
 
     opt = args
+
+    wandb.init(project="BUTD-DETR", name=f"{args.dataset[0]}_run1")
+
     # torch.cuda.set_device(opt.local_rank)
     # torch.distributed.init_process_group(backend='nccl', init_method='env://')
     # torch.backends.cudnn.enabled = True

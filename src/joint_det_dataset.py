@@ -107,7 +107,7 @@ class Joint3DDataset(Dataset):
                     self.annos += (_annos * cnt)
 
         if self.visualize:
-            wandb.init(project="vis", name="debug")
+            wandb.init(project="BUTD-DETR", name="multi3drefer_run1")
 
     def load_annos(self, dset):
         """Load annotations of given dataset."""
