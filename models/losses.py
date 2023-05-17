@@ -338,7 +338,7 @@ class SetCriterion(nn.Module):
         2) supervise each pair of matched ground-truth / prediction
     """
 
-    def __init__(self, matcher, losses={}, eos_coef=0.1, temperature=0.07):
+    def __init__(self, losses={}, eos_coef=0.1, temperature=0.07):
         """
         Parameters:
             matcher: module that matches targets and proposals
@@ -347,7 +347,7 @@ class SetCriterion(nn.Module):
             temperature: used to sharpen the contrastive logits
         """
         super().__init__()
-        self.matcher = matcher
+        self.matcher = HungarianMatcher(1, 0, 2, True)
         self.eos_coef = eos_coef
         self.losses = losses
         self.temperature = temperature
@@ -356,6 +356,8 @@ class SetCriterion(nn.Module):
         """Soft token prediction (with objectness)."""
         logits = outputs["pred_logits"].log_softmax(-1)  # (B, Q, 256)
         positive_map = torch.cat([t["positive_map"] for t in targets])
+
+        num_objs = torch.cat([t["num_objs"].reshape(1) for t in targets])
 
         # Trick to get target indices across batches
         src_idx = self._get_src_permutation_idx(indices)
@@ -367,28 +369,21 @@ class SetCriterion(nn.Module):
         tgt_idx = torch.cat(tgt_idx)
 
         # Labels, by default lines map to the last element, no_object
-        #import pdb; pdb.set_trace()
-        tgt_pos = positive_map[tgt_idx]
         target_sim = torch.zeros_like(logits)
         target_sim[:, :, -1] = 1
-        target_sim[src_idx] = tgt_pos
+        target_sim[src_idx] = positive_map[tgt_idx]
 
         # Compute entropy
         entropy = torch.log(target_sim + 1e-6) * target_sim
         loss_ce = (entropy - logits * target_sim).sum(-1)
 
         # Weight less 'no_object'
-        eos_coef = torch.full(
-            loss_ce.shape, self.eos_coef,
-            device=target_sim.device
-        )
+        eos_coef = torch.full(loss_ce.shape, self.eos_coef, device=target_sim.device)
         eos_coef[src_idx] = 1
         loss_ce = loss_ce * eos_coef
         loss_ce = loss_ce.sum() / num_boxes
 
-        losses = {"loss_ce": loss_ce}
-
-        return losses
+        return loss_ce
 
     def loss_boxes(self, outputs, targets, indices, num_boxes):
         """Compute bbox losses."""
@@ -400,23 +395,16 @@ class SetCriterion(nn.Module):
         ], dim=0)
 
         loss_bbox = (
-            F.l1_loss(
-                src_boxes[..., :3], target_boxes[..., :3],
-                reduction='none'
-            )
-            + 0.2 * F.l1_loss(
-                src_boxes[..., 3:], target_boxes[..., 3:],
-                reduction='none'
-            )
+                F.l1_loss(src_boxes[..., :3], target_boxes[..., :3], reduction='none') + 0.2 *
+                F.l1_loss(src_boxes[..., 3:], target_boxes[..., 3:], reduction='none')
         )
-        losses = {}
-        losses['loss_bbox'] = loss_bbox.sum() / num_boxes
+        loss_bbox = loss_bbox.sum() / num_boxes
 
         loss_giou = 1 - torch.diag(generalized_box_iou3d(
             box_cxcyczwhd_to_xyzxyz(src_boxes),
             box_cxcyczwhd_to_xyzxyz(target_boxes)))
-        losses['loss_giou'] = loss_giou.sum() / num_boxes
-        return losses
+        loss_giou = loss_giou.sum() / num_boxes
+        return loss_bbox, loss_giou
 
     def loss_contrastive_align(self, outputs, targets, indices, num_boxes):
         """Compute contrastive losses between projected queries and tokens."""
@@ -487,7 +475,7 @@ class SetCriterion(nn.Module):
         token_to_box_loss = (token_to_box_loss * tmask).sum()
 
         tot_loss = (box_to_token_loss + token_to_box_loss) / 2
-        return {"loss_contrastive_align": tot_loss / num_boxes}
+        return tot_loss / num_boxes
 
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
@@ -505,14 +493,6 @@ class SetCriterion(nn.Module):
         tgt_idx = torch.cat([tgt for (_, tgt) in indices])
         return batch_idx, tgt_idx
 
-    def get_loss(self, loss, outputs, targets, indices, num_boxes, **kwargs):
-        loss_map = {
-            'labels': self.loss_labels_st,
-            'boxes': self.loss_boxes,
-            'contrastive_align': self.loss_contrastive_align
-        }
-        assert loss in loss_map, f'do you really want to compute {loss} loss?'
-        return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
 
     def forward(self, outputs, targets):
         """
@@ -526,20 +506,21 @@ class SetCriterion(nn.Module):
         indices = self.matcher(outputs, targets)
 
         num_boxes = sum(len(inds[1]) for inds in indices)
-        num_boxes = torch.as_tensor(
-            [num_boxes], dtype=torch.float,
-            device=next(iter(outputs.values())).device
-        )
+        # num_boxes = torch.as_tensor(
+        #     [num_boxes], dtype=torch.float,
+        #     device=next(iter(outputs.values())).device
+        # )
         # if is_dist_avail_and_initialized():
         #     torch.distributed.all_reduce(num_boxes)
         # num_boxes = torch.clamp(num_boxes / dist.get_world_size(), min=1).item()
 
         # Compute all the requested losses
         losses = {}
-        for loss in self.losses:
-            losses.update(self.get_loss(
-                loss, outputs, targets, indices, num_boxes
-            ))
+        assert self.losses == ['boxes', 'labels', 'contrastive_align']
+
+        losses["loss_ce"] = self.loss_labels_st(outputs, targets, indices, num_boxes)
+        losses['loss_bbox'], losses['loss_giou'] = self.loss_boxes(outputs, targets, indices, num_boxes)
+        losses["loss_contrastive_align"] = self.loss_contrastive_align(outputs, targets, indices, num_boxes)
 
         return losses, indices
 
@@ -557,11 +538,14 @@ def compute_hungarian_loss(end_points, num_decoder_layers, set_criterion,
     gt_bbox = torch.cat([gt_center, gt_size], dim=-1)  # cxcyczwhd
     positive_map = end_points['positive_map']
     box_label_mask = end_points['box_label_mask']
+
+    num_objs = end_points['num_targets']
     target = [
         {
             "labels": gt_labels[b, box_label_mask[b].bool()],
             "boxes": gt_bbox[b, box_label_mask[b].bool()],
-            "positive_map": positive_map[b, box_label_mask[b].bool()]
+            "positive_map": positive_map[b, box_label_mask[b].bool()],
+            'num_objs': num_objs[b]
         }
         for b in range(gt_labels.shape[0])
     ]

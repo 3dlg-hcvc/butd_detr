@@ -116,6 +116,7 @@ class Joint3DDataset(Dataset):
             'sr3d': self.load_sr3d_annos,
             'sr3d+': self.load_sr3dplus_annos,
             'scanrefer': self.load_scanrefer_annos,
+            'multi3drefer': self.load_multi3drefer_annos,
             'scannet': self.load_scannet_annos
         }
         annos = loaders[dset]()
@@ -136,7 +137,7 @@ class Joint3DDataset(Dataset):
             scan_ids = set(eval(f.read()))
         with open(os.path.join(self.data_path, 'sr3d_pred_spans.json'), 'r') as f:
             pred_spans = json.load(f)
-        with open(os.path.join(self.data_path + 'refer_it_3d/%s.csv' % dset)) as f:
+        with open(os.path.join(self.data_path, 'refer_it_3d/%s.csv' % dset)) as f:
             csv_reader = csv.reader(f)
             headers = next(csv_reader)
             headers = {header: h for h, header in enumerate(headers)}
@@ -150,6 +151,7 @@ class Joint3DDataset(Dataset):
                     'anchors': eval(line[headers['anchors_types']]),
                     'anchor_ids': eval(line[headers['anchor_ids']]),
                     'dataset': dset,
+                    'num_targets': 1,
                     'pred_pos_map': pred_spans[i]['span'],  # predicted span
                     'span_utterance': pred_spans[i]['utterance']  # for assert
                 }
@@ -231,7 +233,8 @@ class Joint3DDataset(Dataset):
                 'anchor_ids': [],
                 'dataset': 'scanrefer',
                 'pred_pos_map': pred_spans[i]['span'],  # predicted span
-                'span_utterance': pred_spans[i]['utterance']  # for assert
+                'span_utterance': pred_spans[i]['utterance'],  # for assert
+                'num_targets': 1
             }
             for i, anno in enumerate(reader)
             if anno['scene_id'] in scan_ids
@@ -275,6 +278,75 @@ class Joint3DDataset(Dataset):
             ).sum() == 1
         return annos
 
+
+    def load_multi3drefer_annos(self):
+        """Load annotations of ScanRefer."""
+        _path = os.path.join(self.data_path, 'multi3drefer/multi3drefer_filtered')
+        split = self.split
+        if split in ('val', 'test'):
+            split = 'val'
+        with open(_path + '_%s.txt' % split) as f:
+            scan_ids = [line.rstrip().strip('\n') for line in f.readlines()]
+        with open(_path + '_%s.json' % split) as f:
+            reader = json.load(f)
+        with open(os.path.join(self.data_path, f'multi3drefer_pred_spans_{split}.json')) as f:
+            pred_spans = json.load(f)
+
+        assert len(reader) == len(pred_spans)
+        annos = [
+            {
+                'scan_id': anno['scene_id'],
+                'target_id': anno['object_ids'],
+                'original_target_id': int(anno['object_id']),
+                'distractor_ids': [],
+                'utterance': ' '.join(anno['token']),
+                'target': ' '.join(str(anno['object_name']).split('_')),
+                'anchors': [],
+                'anchor_ids': [],
+                'dataset': 'multi3drefer',
+                'pred_pos_map': pred_spans[i]['span'],  # predicted span
+                'span_utterance': pred_spans[i]['utterance'],  # for assert
+                'num_targets': len(anno['object_ids']),
+                'eval_type': anno["eval_type"]
+            }
+            for i, anno in enumerate(reader)
+            if anno['scene_id'] in scan_ids
+        ]
+
+        # Add distractor info
+        # scene2obj = defaultdict(list)
+        # sceneobj2used = defaultdict(list)
+        for anno in annos:
+            nyu_labels = [
+                self.label_mapclass[
+                    self.scans[anno['scan_id']].get_object_instance_label(ind)
+                ]
+                for ind in
+                range(len(self.scans[anno['scan_id']].three_d_objects))
+            ]
+            labels = [DC18.type2class.get(lbl, 17) for lbl in nyu_labels]
+            anno['distractor_ids'] = [ind for ind in range(len(self.scans[anno['scan_id']].three_d_objects))
+                if labels[ind] == labels[anno['original_target_id']] and ind not in anno['target_id']
+            ][:32]
+            # if anno['target_id'] not in sceneobj2used[anno['scan_id']]:
+            #     sceneobj2used[anno['scan_id']].append(anno['target_id'])
+            #     scene2obj[anno['scan_id']].append(labels[anno['target_id']])
+        # Add unique-multi
+        for anno in annos:
+            nyu_labels = [
+                self.label_mapclass[
+                    self.scans[anno['scan_id']].get_object_instance_label(ind)
+                ]
+                for ind in
+                range(len(self.scans[anno['scan_id']].three_d_objects))
+            ]
+            labels = [DC18.type2class.get(lbl, 17) for lbl in nyu_labels]
+            # anno['unique'] = (
+            #     np.array(scene2obj[anno['scan_id']])
+            #     == labels[anno['target_id']]
+            # ).sum() == 1
+        return annos
+
     def load_scannet_annos(self):
         """Load annotations of scannet."""
         split = 'train' if self.split == 'train' else 'val'
@@ -300,6 +372,7 @@ class Joint3DDataset(Dataset):
                     'target': [],
                     'anchors': [],
                     'anchor_ids': [],
+                    'num_targets': 0,
                     'dataset': 'scannet'
                 })
         if self.split == 'train':
@@ -507,9 +580,10 @@ class Joint3DDataset(Dataset):
         for t, tid in enumerate(tids):
             point_instance_label[scan.three_d_objects[tid]['points']] = t
 
-        bboxes[:len(tids)] = np.stack([
-            scan.get_object_bbox(tid).reshape(-1) for tid in tids
-        ])
+        if len(tids) > 0:
+            bboxes[:len(tids)] = np.stack([
+                scan.get_object_bbox(tid).reshape(-1) for tid in tids
+            ])
         bboxes = np.concatenate((
             (bboxes[:, :3] + bboxes[:, 3:]) * 0.5,
             bboxes[:, 3:] - bboxes[:, :3]
@@ -728,19 +802,46 @@ class Joint3DDataset(Dataset):
 
         # Return
         _labels = np.zeros(MAX_NUM_OBJ)
-        if not isinstance(anno['target_id'], int) and not self.random_utt:
-            _labels[:len(anno['target_id'])] = np.array([
-                DC18.nyu40id2class[self.label_map18[
-                    scan.get_object_instance_label(ind)
-                ]]
-                for ind in anno['target_id']
-            ])
+
+        if anno['dataset'] == 'scannet':
+            if not isinstance(anno['target_id'], int) and not self.random_utt:
+                _labels[:len(anno['target_id'])] = np.array([
+                    DC18.nyu40id2class[self.label_map18[
+                        scan.get_object_instance_label(ind)
+                    ]]
+                    for ind in anno['target_id']
+                ])
+
         ret_dict = {
             'box_label_mask': box_label_mask.astype(np.float32),
             'center_label': gt_bboxes[:, :3].astype(np.float32),
             'sem_cls_label': _labels.astype(np.int64),
             'size_gts': gt_bboxes[:, 3:].astype(np.float32),
         }
+
+        if anno['dataset'] == 'multi3drefer':
+            target_name = scan.get_object_instance_label(
+                anno['original_target_id']
+            )
+            target_id = anno['original_target_id']
+            target_cid = class_ids[anno['original_target_id']]
+        else:
+            target_name = scan.get_object_instance_label(
+                anno['target_id'] if isinstance(anno['target_id'], int)
+                else anno['target_id'][0]
+            )
+
+            target_id = (
+                anno['target_id'] if isinstance(anno['target_id'], int)
+                else anno['target_id'][0]
+            )
+
+            target_cid = (
+                class_ids[anno['target_id']]
+                if isinstance(anno['target_id'], int)
+                else class_ids[anno['target_id'][0]]
+            )
+
         ret_dict.update({
             "scan_ids": anno['scan_id'],
             "point_clouds": point_cloud.astype(np.float32),
@@ -754,14 +855,8 @@ class Joint3DDataset(Dataset):
                 if anno['dataset'].startswith('sr3d')
                 else "none"
             ),
-            "target_name": scan.get_object_instance_label(
-                anno['target_id'] if isinstance(anno['target_id'], int)
-                else anno['target_id'][0]
-            ),
-            "target_id": (
-                anno['target_id'] if isinstance(anno['target_id'], int)
-                else anno['target_id'][0]
-            ),
+            "target_name": target_name,
+            "target_id": target_id,
             "point_instance_label": point_instance_label.astype(np.int64),
             "all_bboxes": all_bboxes.astype(np.float32),
             "all_bbox_label_mask": all_bbox_label_mask.astype(np.bool8),
@@ -781,11 +876,8 @@ class Joint3DDataset(Dataset):
             "is_view_dep": self._is_view_dep(anno['utterance']),
             "is_hard": len(anno['distractor_ids']) > 1,
             "is_unique": len(anno['distractor_ids']) == 0,
-            "target_cid": (
-                class_ids[anno['target_id']]
-                if isinstance(anno['target_id'], int)
-                else class_ids[anno['target_id'][0]]
-            )
+            "num_targets": anno["num_targets"],
+            "target_cid": target_cid
         })
         return ret_dict
 

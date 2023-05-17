@@ -3,7 +3,6 @@ import csv
 import json
 import os
 import os.path as osp
-
 import numpy as np
 import torch
 from torch import nn
@@ -81,7 +80,7 @@ class Trainer:
         val_acc_prev_best = ckpnt['best_acc']
         return start_epoch, val_acc_prev_best
 
-    def train_test_loop(self, mode='train', epoch=1000):
+    def train_test_loop(self, mode, epoch=1000):
         n_correct, n_samples = 0, 0
         total_scores = []
         all_utterances = []

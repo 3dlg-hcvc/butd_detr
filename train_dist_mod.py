@@ -134,20 +134,6 @@ class TrainTester():
             "det_class_ids": batch_data['all_detected_class_ids']
         }
 
-    @staticmethod
-    def get_criterion(args):
-        """Get loss criterion for training."""
-        matcher = HungarianMatcher(1, 0, 2, args.use_soft_token_loss)
-        losses = ['boxes', 'labels']
-        if args.use_contrastive_align:
-            losses.append('contrastive_align')
-        set_criterion = SetCriterion(
-            matcher=matcher,
-            losses=losses, eos_coef=0.1, temperature=0.07
-        )
-
-        return set_criterion
-
 
     def get_loaders(self, args):
         """Initialize data loaders."""
@@ -202,8 +188,14 @@ class TrainTester():
 
         # Get criterion
         self.logger.info("Loading criterions ...")
-        set_criterion = self.get_criterion(args)
 
+        losses = ['boxes', 'labels']
+        if args.use_contrastive_align:
+            losses.append('contrastive_align')
+
+        set_criterion = SetCriterion(
+            losses=losses, eos_coef=0.1, temperature=0.07
+        )
 
         # Get optimizer
         optimizer = self.get_optimizer(args, model)
@@ -298,9 +290,7 @@ class TrainTester():
                 "lr": args.text_encoder_lr
             }
         ]
-        optimizer = optim.AdamW(param_dicts,
-                                lr=args.lr,
-                                weight_decay=args.weight_decay)
+        optimizer = optim.AdamW(param_dicts, lr=args.lr, weight_decay=args.weight_decay)
         return optimizer
 
     def train_one_epoch(self, epoch, train_loader, model,
@@ -454,8 +444,6 @@ class TrainTester():
 
         if args.num_decoder_layers > 0:
             prefixes = ['last_', 'proposal_']
-            prefixes = ['last_']
-            prefixes.append('proposal_')
         else:
             # NOT HERE
             prefixes = ['proposal_']  # only proposal

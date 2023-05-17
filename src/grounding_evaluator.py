@@ -218,7 +218,10 @@ class GroundingEvaluator:
                     self.dets[(prefix, t, k, 'bbf')] += found.sum().item()
                     self.gts[(prefix, t, k, 'bbf')] += len(thresholded)
                     if prefix == 'last_':
-                        found = found[0].item()
+                        if found.shape[0] > 0:
+                            found = found[0].item()
+                        else:
+                            found = False
                         if k == 1 and t == self.thresholds[0]:
                             if end_points['is_view_dep'][bid]:
                                 self.gts['vd'] += 1
