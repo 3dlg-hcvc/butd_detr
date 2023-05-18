@@ -228,7 +228,7 @@ class GroundingEvaluator:
                         else:
                             found = False
                         if k == 1 and t == self.thresholds[0]:
-                            if end_points["eval_type"][bid] != "None":
+                            if end_points["eval_type"][bid] == "None":
                                 if end_points['is_view_dep'][bid]:
                                     self.gts['vd'] += 1
                                     self.dets['vd'] += found
@@ -251,7 +251,7 @@ class GroundingEvaluator:
                                 self.gts[end_points["eval_type"][bid]] += 1
                                 self.dets[end_points["eval_type"][bid]] += found
                         if k == 1 and t == self.thresholds[1]:
-                            if end_points["eval_type"][bid] != "None":
+                            if end_points["eval_type"][bid] == "None":
                                 if end_points['is_unique'][bid]:
                                     self.gts['unique_0.5'] += 1
                                     self.dets['unique_0.5'] += found
