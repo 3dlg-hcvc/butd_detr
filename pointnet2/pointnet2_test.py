@@ -19,7 +19,7 @@ def test_interpolation_grad():
     batch_size = 1
     feat_dim = 2
     m = 4
-    feats = torch.randn(batch_size, feat_dim, m, requires_grad=True).float().cuda()
+    feats = torch.randn(batch_size, feat_dim, m, requires_grad=True, device="cuda", dtype=torch.float32)
     
     def interpolate_func(inputs):
         idx = torch.from_numpy(np.array([[[0,1,2],[1,2,3]]])).int().cuda()

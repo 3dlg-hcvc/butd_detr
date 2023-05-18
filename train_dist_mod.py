@@ -25,7 +25,7 @@ from src.grounding_evaluator import GroundingEvaluator, GroundingGTEvaluator
 from models import BeaUTyDETR
 from models import APCalculator, parse_predictions, parse_groundtruths
 from utils import get_scheduler, setup_logger
-from models import HungarianMatcher, SetCriterion, compute_hungarian_loss
+from models import SetCriterion, compute_hungarian_loss
 import json
 import random
 import wandb
@@ -187,7 +187,7 @@ class TrainTester():
         self.logger.info("Loading models ...")
         model = self.get_model(args)
 
-        wandb.watch(model)
+        # wandb.watch(model)
 
         # Get criterion
         self.logger.info("Loading criterions ...")
@@ -355,14 +355,11 @@ class TrainTester():
                     for key in sorted(stat_dict.keys()) if 'loss' in key and 'proposal_' not in key and 'last_' not in key and 'head_' not in key
                 ]))
 
-
-                wandb.log({"train/loss_ce": stat_dict["loss_ce"]})
-                wandb.log({"train/loss_bbox": stat_dict["loss_bbox"]})
-                wandb.log({"train/loss_giou": stat_dict["loss_giou"]})
-                wandb.log({"train/loss_constrastive_align": stat_dict["loss_constrastive_align"]})
-                wandb.log({"train/total_loss": stat_dict["loss"]})
-
-
+                wandb.log({"train/loss_ce": stat_dict["loss_ce"] / args.print_freq})
+                wandb.log({"train/loss_bbox": stat_dict["loss_bbox"] / args.print_freq})
+                wandb.log({"train/loss_giou": stat_dict["loss_giou"] / args.print_freq})
+                wandb.log({"train/loss_constrastive_align": stat_dict["loss_constrastive_align"] / args.print_freq})
+                wandb.log({"train/total_loss": stat_dict["loss"] / args.print_freq})
                 for key in sorted(stat_dict.keys()):
                     stat_dict[key] = 0
 

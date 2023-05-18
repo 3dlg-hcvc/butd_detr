@@ -153,7 +153,8 @@ class Joint3DDataset(Dataset):
                     'dataset': dset,
                     'num_targets': 1,
                     'pred_pos_map': pred_spans[i]['span'],  # predicted span
-                    'span_utterance': pred_spans[i]['utterance']  # for assert
+                    'span_utterance': pred_spans[i]['utterance'],
+                    'eval_type': "None" # for assert
                 }
                 for i, line in enumerate(csv_reader)
                 if line[headers['scan_id']] in scan_ids
@@ -185,7 +186,8 @@ class Joint3DDataset(Dataset):
                     'anchors': [],
                     'dataset': 'nr3d',
                     'pred_pos_map': pred_spans[i]['span'],  # predicted span
-                    'span_utterance': pred_spans[i]['utterance']  # for assert
+                    'span_utterance': pred_spans[i]['utterance'],
+                    'eval_type': "None" # for assert
                 }
                 for i, line in enumerate(csv_reader)
                 if line[headers['scan_id']] in scan_ids
@@ -234,7 +236,8 @@ class Joint3DDataset(Dataset):
                 'dataset': 'scanrefer',
                 'pred_pos_map': pred_spans[i]['span'],  # predicted span
                 'span_utterance': pred_spans[i]['utterance'],  # for assert
-                'num_targets': 1
+                'num_targets': 1,
+                'eval_type': "None"
             }
             for i, anno in enumerate(reader)
             if anno['scene_id'] in scan_ids
@@ -373,7 +376,8 @@ class Joint3DDataset(Dataset):
                     'anchors': [],
                     'anchor_ids': [],
                     'num_targets': 0,
-                    'dataset': 'scannet'
+                    'dataset': 'scannet',
+                    'eval_type': "None"
                 })
         if self.split == 'train':
             annos = [
@@ -876,6 +880,7 @@ class Joint3DDataset(Dataset):
             "is_view_dep": self._is_view_dep(anno['utterance']),
             "is_hard": len(anno['distractor_ids']) > 1,
             "is_unique": len(anno['distractor_ids']) == 0,
+            'eval_type': anno["eval_type"],
             "num_targets": np.count_nonzero(all_bbox_label_mask),
             "target_cid": target_cid
         })

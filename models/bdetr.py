@@ -232,9 +232,7 @@ class BeaUTyDETR(nn.Module):
         points_features, text_feats = self.cross_encoder(
             vis_feats=points_features.transpose(1, 2).contiguous(),
             pos_feats=self.pos_embed(points_xyz).transpose(1, 2).contiguous(),
-            padding_mask=torch.zeros(
-                len(points_xyz), points_xyz.size(1)
-            ).to(points_xyz.device).bool(),
+            padding_mask=torch.zeros(len(points_xyz), points_xyz.size(1), device=points_xyz.device, dtype=torch.bool),
             text_feats=text_feats,
             text_padding_mask=text_padding_mask,
             end_points=end_points,

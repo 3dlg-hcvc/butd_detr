@@ -173,7 +173,7 @@ def compute_points_obj_cls_loss_hard_topk(end_points, topk):
     point_instance_label = end_points['point_instance_label']  # B, num_points
     obj_assignment = torch.gather(point_instance_label, 1, seed_inds)  # B, K
     obj_assignment[obj_assignment < 0] = G - 1  # bg points to last gt
-    obj_assignment_one_hot = torch.zeros((B, K, G)).to(seed_xyz.device)
+    obj_assignment_one_hot = torch.zeros((B, K, G), device=seed_xyz.device)
     obj_assignment_one_hot.scatter_(2, obj_assignment.unsqueeze(-1), 1)
 
     # Normalized distances of points and gt centroids
@@ -195,14 +195,14 @@ def compute_points_obj_cls_loss_hard_topk(end_points, topk):
     )  # BxGxtopk
     topk_inds = topk_inds.long()  # BxGxtopk
     topk_inds = topk_inds.view(B, -1).contiguous()  # B, Gxtopk
-    batch_inds = torch.arange(B)[:, None].repeat(1, G*topk).to(seed_xyz.device)
+    batch_inds = torch.arange(B, device=seed_xyz.device)[:, None].repeat(1, G*topk)
     batch_topk_inds = torch.stack([
         batch_inds,
         topk_inds
     ], -1).view(-1, 2).contiguous()
 
     # Topk points closest to each centroid are marked as true objects
-    objectness_label = torch.zeros((B, K + 1)).long().to(seed_xyz.device)
+    objectness_label = torch.zeros((B, K + 1), device=seed_xyz.device, dtype=torch.long)
     objectness_label[batch_topk_inds[:, 0], batch_topk_inds[:, 1]] = 1
     objectness_label = objectness_label[:, :K]
     objectness_label_mask = torch.gather(point_instance_label, 1, seed_inds)
@@ -287,6 +287,8 @@ class HungarianMatcher(nn.Module):
         tgt_ids = torch.cat([v["labels"] for v in targets])
         tgt_bbox = torch.cat([v["boxes"] for v in targets])
 
+
+
         if self.soft_token:
             # pad if necessary
             if out_prob.shape[-1] != positive_map.shape[-1]:
@@ -322,13 +324,7 @@ class HungarianMatcher(nn.Module):
             linear_sum_assignment(c[i])
             for i, c in enumerate(C.split(sizes, -1))
         ]
-        return [
-            (
-                torch.as_tensor(i, dtype=torch.int64),  # matched pred boxes
-                torch.as_tensor(j, dtype=torch.int64)  # corresponding gt boxes
-            )
-            for i, j in indices
-        ]
+        return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
 
 class SetCriterion(nn.Module):
@@ -381,6 +377,7 @@ class SetCriterion(nn.Module):
         eos_coef = torch.full(loss_ce.shape, self.eos_coef, device=target_sim.device)
         eos_coef[src_idx] = 1
         loss_ce = loss_ce * eos_coef
+
         loss_ce = loss_ce.sum() / num_boxes
 
         return loss_ce
@@ -505,7 +502,15 @@ class SetCriterion(nn.Module):
         # Retrieve the matching between outputs and targets
         indices = self.matcher(outputs, targets)
 
-        num_boxes = sum(len(inds[1]) for inds in indices)
+        # num_boxes = sum(len(inds[1]) for inds in indices)
+
+        num_boxes = 0
+        for inds in indices:
+            num_boxes += len(inds[1]) if len(inds[1]) > 0 else 1
+
+        # for inds in indices:
+        #     a = len(inds[1])
+        #     b = len(inds[0])
         # num_boxes = torch.as_tensor(
         #     [num_boxes], dtype=torch.float,
         #     device=next(iter(outputs.values())).device
@@ -519,6 +524,7 @@ class SetCriterion(nn.Module):
         assert self.losses == ['boxes', 'labels', 'contrastive_align']
 
         losses["loss_ce"] = self.loss_labels_st(outputs, targets, indices, num_boxes)
+
         losses['loss_bbox'], losses['loss_giou'] = self.loss_boxes(outputs, targets, indices, num_boxes)
         losses["loss_contrastive_align"] = self.loss_contrastive_align(outputs, targets, indices, num_boxes)
 

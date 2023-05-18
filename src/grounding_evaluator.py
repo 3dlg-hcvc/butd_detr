@@ -7,7 +7,7 @@
 """A class to collect and evaluate language grounding results."""
 
 import torch
-
+import wandb
 from models.losses import _iou3d_par, box_cxcyczwhd_to_xyzxyz
 # import utils.misc as misc
 
@@ -46,10 +46,12 @@ class GroundingEvaluator:
 
         self.dets.update({'vd': 0, 'vid': 0})
         self.dets.update({'hard': 0, 'easy': 0})
-        self.dets.update({'multi': 0, 'unique': 0})
+        self.dets.update({'multi_0.25': 0, 'unique_0.25': 0, 'multi_0.5': 0, 'unique_0.5': 0})
+        self.gts.update({'zt_w_d': 0, 'zt_wo_d': 0, 'st_w_d': 0, 'st_wo_d': 0, 'mt': 0})
         self.gts.update({'vd': 1e-14, 'vid': 1e-14})
         self.gts.update({'hard': 1e-14, 'easy': 1e-14})
-        self.gts.update({'multi': 1e-14, 'unique': 1e-14})
+        self.gts.update({'multi_0.25': 1e-14, 'unique_0.25': 1e-14, 'multi_0.5': 1e-14, 'unique_0.5': 1e-14})
+        self.gts.update({'zt_w_d': 1e-14, 'zt_wo_d': 1e-14, 'st_w_d': 1e-14, 'st_wo_d': 1e-14, 'mt': 1e-14})
 
     def print_stats(self):
         """Print accumulated accuracies."""
@@ -72,8 +74,12 @@ class GroundingEvaluator:
                         ])
                     )
         print('\nAnalysis')
-        for field in ['easy', 'hard', 'vd', 'vid', 'unique', 'multi']:
-            print(field, self.dets[field] / self.gts[field])
+        for field in ['easy', 'hard', 'vd', 'vid', 'unique_0.25', 'multi_0.25', 'unique_0.5',
+                      'multi_0.5', 'zt_w_d', 'zt_wo_d', 'st_w_d', 'st_wo_d', 'mt']:
+            if field in self.gts:
+                value = self.dets[field] / self.gts[field]
+                print(field, value)
+                wandb.log({f"eval_val/{field}": value})
 
     # def synchronize_between_processes(self):
     #     all_dets = misc.all_gather(self.dets)
@@ -122,7 +128,7 @@ class GroundingEvaluator:
         if sem_scores.shape[-1] != positive_map.shape[-1]:
             sem_scores_ = torch.zeros(
                 sem_scores.shape[0], sem_scores.shape[1],
-                positive_map.shape[-1]).to(sem_scores.device)
+                positive_map.shape[-1], device=sem_scores.device)
             sem_scores_[:, :, :sem_scores.shape[-1]] = sem_scores
             sem_scores = sem_scores_
 
@@ -179,7 +185,6 @@ class GroundingEvaluator:
         pred_size = end_points[f'{prefix}pred_size']  # (B,Q,3) (l,w,h)
         assert (pred_size < 0).sum() == 0
         pred_bbox = torch.cat([pred_center, pred_size], dim=-1)
-
         proj_tokens = end_points['proj_tokens']  # (B, tokens, 64)
         proj_queries = end_points[f'{prefix}proj_queries']  # (B, Q, 64)
         sem_scores = torch.matmul(proj_queries, proj_tokens.transpose(-1, -2))
@@ -223,24 +228,43 @@ class GroundingEvaluator:
                         else:
                             found = False
                         if k == 1 and t == self.thresholds[0]:
-                            if end_points['is_view_dep'][bid]:
-                                self.gts['vd'] += 1
-                                self.dets['vd'] += found
+                            if end_points["eval_type"][bid] != "None":
+                                if end_points['is_view_dep'][bid]:
+                                    self.gts['vd'] += 1
+                                    self.dets['vd'] += found
+                                else:
+                                    self.gts['vid'] += 1
+                                    self.dets['vid'] += found
+                                if end_points['is_hard'][bid]:
+                                    self.gts['hard'] += 1
+                                    self.dets['hard'] += found
+                                else:
+                                    self.gts['easy'] += 1
+                                    self.dets['easy'] += found
+                                if end_points['is_unique'][bid]:
+                                    self.gts['unique_0.25'] += 1
+                                    self.dets['unique_0.25'] += found
+                                else:
+                                    self.gts['multi_0.25'] += 1
+                                    self.dets['multi_0.25'] += found
                             else:
-                                self.gts['vid'] += 1
-                                self.dets['vid'] += found
-                            if end_points['is_hard'][bid]:
-                                self.gts['hard'] += 1
-                                self.dets['hard'] += found
+                                self.gts[end_points["eval_type"][bid]] += 1
+                                self.dets[end_points["eval_type"][bid]] += found
+                        if k == 1 and t == self.thresholds[1]:
+                            if end_points["eval_type"][bid] != "None":
+                                if end_points['is_unique'][bid]:
+                                    self.gts['unique_0.5'] += 1
+                                    self.dets['unique_0.5'] += found
+                                    wandb.log({"eval_val/unique_0.5": self.dets['unique_0.5']})
+                                else:
+                                    self.gts['multi_0.5'] += 1
+                                    self.dets['multi_0.5'] += found
+                                    wandb.log({"eval_val/multi_0.5": self.dets['multi_0.5']})
                             else:
-                                self.gts['easy'] += 1
-                                self.dets['easy'] += found
-                            if end_points['is_unique'][bid]:
-                                self.gts['unique'] += 1
-                                self.dets['unique'] += found
-                            else:
-                                self.gts['multi'] += 1
-                                self.dets['multi'] += found
+                                tmppp = end_points["eval_type"][bid]
+                                self.gts[tmppp] += 1
+                                self.dets[tmppp] += found
+                                wandb.log({f"eval_val/{tmppp}": self.dets[tmppp]})
 
     def _parse_gt(self, end_points):
         positive_map = torch.clone(end_points['positive_map'])  # (B, K, 256)
@@ -297,7 +321,9 @@ class GroundingGTEvaluator:
                 print(prefix, mode_str[mode], f'Acc: {self.dets[(prefix, mode)] / self.gts[(prefix, mode)]}')
         print('\nAnalysis')
         for field in ['easy', 'hard', 'vd', 'vid', 'unique', 'multi']:
-            print(field, self.dets[field] / self.gts[field])
+            value = self.dets[field] / self.gts[field]
+            print(field, value)
+            wandb.log({f"eval_val/{field}": value})
 
     # def synchronize_between_processes(self):
     #     all_dets = misc.all_gather(self.dets)
@@ -346,7 +372,7 @@ class GroundingGTEvaluator:
         if sem_scores.shape[-1] != positive_map.shape[-1]:
             sem_scores_ = torch.zeros(
                 sem_scores.shape[0], sem_scores.shape[1],
-                positive_map.shape[-1]).to(sem_scores.device)
+                positive_map.shape[-1], device=sem_scores.device)
             sem_scores_[:, :, :sem_scores.shape[-1]] = sem_scores
             sem_scores = sem_scores_
 
