@@ -228,28 +228,25 @@ class GroundingEvaluator:
                         else:
                             found = False
                         if k == 1 and t == self.thresholds[0]:
-                            if end_points["eval_type"][bid] == "None":
-                                if end_points['is_view_dep'][bid]:
-                                    self.gts['vd'] += 1
-                                    self.dets['vd'] += found
-                                else:
-                                    self.gts['vid'] += 1
-                                    self.dets['vid'] += found
-                                if end_points['is_hard'][bid]:
-                                    self.gts['hard'] += 1
-                                    self.dets['hard'] += found
-                                else:
-                                    self.gts['easy'] += 1
-                                    self.dets['easy'] += found
-                                if end_points['is_unique'][bid]:
-                                    self.gts['unique_0.25'] += 1
-                                    self.dets['unique_0.25'] += found
-                                else:
-                                    self.gts['multi_0.25'] += 1
-                                    self.dets['multi_0.25'] += found
+                            if end_points['is_view_dep'][bid]:
+                                self.gts['vd'] += 1
+                                self.dets['vd'] += found
                             else:
-                                self.gts[end_points["eval_type"][bid]] += 1
-                                self.dets[end_points["eval_type"][bid]] += found
+                                self.gts['vid'] += 1
+                                self.dets['vid'] += found
+                            if end_points['is_hard'][bid]:
+                                self.gts['hard'] += 1
+                                self.dets['hard'] += found
+                            else:
+                                self.gts['easy'] += 1
+                                self.dets['easy'] += found
+                            if end_points['is_unique'][bid]:
+                                self.gts['unique_0.25'] += 1
+                                self.dets['unique_0.25'] += found
+                            else:
+                                self.gts['multi_0.25'] += 1
+                                self.dets['multi_0.25'] += found
+
                         if k == 1 and t == self.thresholds[1]:
                             if end_points["eval_type"][bid] == "None":
                                 if end_points['is_unique'][bid]:
