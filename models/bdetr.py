@@ -70,9 +70,8 @@ class BeaUTyDETR(nn.Module):
             ), strict=False)
 
         # Text Encoder
-        t_type = "roberta-base"
-        self.tokenizer = RobertaTokenizerFast.from_pretrained(t_type)
-        self.text_encoder = RobertaModel.from_pretrained(t_type)
+        self.tokenizer = RobertaTokenizerFast.from_pretrained("roberta-base")
+        self.text_encoder = RobertaModel.from_pretrained("roberta-base")
         for param in self.text_encoder.parameters():
             param.requires_grad = False
 

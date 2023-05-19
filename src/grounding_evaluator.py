@@ -47,7 +47,7 @@ class GroundingEvaluator:
         self.dets.update({'vd': 0, 'vid': 0})
         self.dets.update({'hard': 0, 'easy': 0})
         self.dets.update({'multi_0.25': 0, 'unique_0.25': 0, 'multi_0.5': 0, 'unique_0.5': 0})
-        self.gts.update({'zt_w_d': 0, 'zt_wo_d': 0, 'st_w_d': 0, 'st_wo_d': 0, 'mt': 0})
+        self.dets.update({'zt_w_d': 0, 'zt_wo_d': 0, 'st_w_d': 0, 'st_wo_d': 0, 'mt': 0})
         self.gts.update({'vd': 1e-14, 'vid': 1e-14})
         self.gts.update({'hard': 1e-14, 'easy': 1e-14})
         self.gts.update({'multi_0.25': 1e-14, 'unique_0.25': 1e-14, 'multi_0.5': 1e-14, 'unique_0.5': 1e-14})

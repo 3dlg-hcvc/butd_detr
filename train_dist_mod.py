@@ -158,7 +158,7 @@ class TrainTester():
             pin_memory=True,
             # sampler=train_sampler,
             drop_last=True,
-            generator=g
+            generator=g,
         )
         # test_sampler = DistributedSampler(test_dataset, shuffle=False)
         test_loader = DataLoader(
@@ -170,7 +170,7 @@ class TrainTester():
             pin_memory=True,
             # sampler=test_sampler,
             drop_last=False,
-            generator=g
+            generator=g,
         )
         return train_loader, test_loader
 
